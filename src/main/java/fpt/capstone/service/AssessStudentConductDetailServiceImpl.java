@@ -5,10 +5,7 @@ import fpt.capstone.entities.AssessStudentConductDetail;
 import fpt.capstone.entities.SchoolYear;
 import fpt.capstone.entities.ServiceResult;
 import fpt.capstone.form_data.AssessStudentConductDetailForm;
-import fpt.capstone.repository.AssessStudentConductDetailRepository;
-import fpt.capstone.repository.AssessStudentConductRepository;
-import fpt.capstone.repository.GradebookRepository;
-import fpt.capstone.repository.SchoolYearRespository;
+import fpt.capstone.repository.*;
 import fpt.capstone.security.services.UserDetailsImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -34,6 +31,10 @@ public class AssessStudentConductDetailServiceImpl implements AssessStudentCondu
     SchoolYearRespository schoolYearRespository;
     @Autowired
     GradebookRepository gradebookRepository;
+    @Autowired
+    StudentRepository studentRepository;
+    @Autowired
+    AttendanceStudentRepository attendanceStudentRepository;
 
     @Override
     public ServiceResult<List<Map<String, Object>>> getInfoConductOfClass(Integer semester, String year, Integer teacherId, String classCode) {
@@ -47,9 +48,45 @@ public class AssessStudentConductDetailServiceImpl implements AssessStudentCondu
                         serviceResult.setStatus(HttpStatus.BAD_REQUEST);
                         return serviceResult;
                     }else {
+                        List<Map<String, Object>> listEnough = new ArrayList<>();
+                        //check kỳ 1 và 2 đã được đánh giá chưa
+                        int amountOfSemester = schoolYearRespository.getSemesterAmount(year);
+                        if(amountOfSemester == 2){
+                            for (Map<String, Object> m : output){
+                                int enough = 0;
+                                List<Map<String, Object>> semester1 = assessStudentConductDetailRepository.getEvaluateAndCompetitionBySemester(m.get("student_code").toString(), 1, year);
+                                List<Map<String, Object>> semester2 = assessStudentConductDetailRepository.getEvaluateAndCompetitionBySemester(m.get("student_code").toString(), 2, year);
+                                if(semester1.size() != 0 && semester2.size() != 0){
+                                    if(semester1.get(0).get("conduct") != null
+                                    && !semester1.get(0).get("conduct").toString().trim().equals("")
+                                    && semester1.get(0).get("competition_title") != null
+                                    && !semester1.get(0).get("competition_title").toString().trim().equals("")
+                                    && semester2.get(0).get("conduct") != null
+                                    && !semester2.get(0).get("conduct").toString().trim().equals("")
+                                    && semester2.get(0).get("competition_title") != null
+                                    && !semester2.get(0).get("competition_title").toString().trim().equals("")){
+                                        enough = 1;
+                                    }
+                                }
+                                Map<String, Object> newMap = new HashMap<>();
+                                newMap.put("id", m.get("id"));
+                                newMap.put("full_name", m.get("full_name"));
+                                newMap.put("student_code", m.get("student_code"));
+                                newMap.put("number_off", m.get("number_off"));
+                                newMap.put("number_off_allowed", m.get("number_off_allowed"));
+                                newMap.put("academic_ability", m.get("academic_ability"));
+                                newMap.put("conduct", m.get("conduct"));
+                                newMap.put("competition_title", m.get("competition_title"));
+                                newMap.put("evaluate", m.get("evaluate"));
+                                newMap.put("parent_code", m.get("parent_code"));
+                                newMap.put("enough", enough);
+                                listEnough.add(newMap);
+                            }
+                        }
+
                         serviceResult.setMessage("success");
                         serviceResult.setStatus(HttpStatus.OK);
-                        serviceResult.setData(output);
+                        serviceResult.setData(listEnough);
                     }
                 }else{
                     List<Map<String, Object>> output = assessStudentConductDetailRepository.getInfoConductOfClass(semester, year, classCode);
@@ -275,6 +312,11 @@ public class AssessStudentConductDetailServiceImpl implements AssessStudentCondu
     public ServiceResult<List<Map<String, Object>>> getReportTheResultOfEachClass(String year, String classCode, Integer semester) {
         ServiceResult<List<Map<String, Object>>> serviceResult = new ServiceResult();
         try{
+            if(studentRepository.getAmountOfStudentByClassCodeAndYear(classCode, year) == 0){
+                serviceResult.setStatus(HttpStatus.BAD_REQUEST);
+                serviceResult.setMessage("Lớp này chưa có học sinh nào");
+                return serviceResult;
+            }
             serviceResult.setStatus(HttpStatus.OK);
             serviceResult.setMessage("success");
             List<Map<String, Object>> list = assessStudentConductDetailRepository.getReportTheResultOfEachClass(year, classCode, semester);
@@ -287,22 +329,55 @@ public class AssessStudentConductDetailServiceImpl implements AssessStudentCondu
                 Map<String, Object> object = new HashMap<>();
                 for (int i = 0; i < list.size(); i++){
                     if(studentCode.equals(list.get(i).get("studentCode").toString().trim())){
-                        object.put("studentCode", list.get(i).get("studentCode"));
-                        object.put("studentName", list.get(i).get("studentName"));
+                        if(object.get("studentCode") == null){
+                            object.put("studentCode", list.get(i).get("studentCode"));
+                            object.put("studentName", list.get(i).get("studentName"));
+                            List<Map<String, Object>> getPandK = attendanceStudentRepository.getPandKbyYearAndSemesterAndStudentCode(year, semester, studentCode);
+                            if(getPandK.get(0).get("number_off") != null){
+                                object.put("number_off", getPandK.get(0).get("number_off"));
+                            }else{
+                                object.put("number_off", 0);
+                            }
+                            if(getPandK.get(0).get("number_off_allowed") != null){
+                                object.put("number_off_allowed", getPandK.get(0).get("number_off_allowed"));
+                            }else{
+                                object.put("number_off_allowed", 0);
+                            }
+                        }
                         if(list.get(i).get("academic_ability") == null || list.get(i).get("academic_ability").toString().trim().equals("")){
-                            object.put("academic_ability", null);
+                            if(object.get("academic_ability") == null){
+                                object.put("academic_ability", null);
+                            }
                         }else{
                             object.put("academic_ability", list.get(i).get("academic_ability"));
                         }
                         if(list.get(i).get("conduct") == null || list.get(i).get("conduct").toString().trim().equals("")){
-                            object.put("conduct", null);
+                            if(object.get("conduct") == null){
+                                object.put("conduct", null);
+                            }
                         }else{
                             object.put("conduct", list.get(i).get("conduct"));
                         }
-                        object.put("number_off", list.get(i).get("number_off"));
-                        object.put("number_off_allowed", list.get(i).get("number_off_allowed"));
+//                        if(list.get(i).get("number_off") == null || list.get(i).get("number_off").toString().trim().equals("")){
+//                            if(object.get("number_off") == null){
+//                                object.put("number_off", null);
+//                            }
+//                        }else{
+//                            object.put("number_off", list.get(i).get("number_off"));
+//                        }
+//
+//                        if(list.get(i).get("number_off_allowed") == null || list.get(i).get("number_off_allowed").toString().trim().equals("")){
+//                            if(object.get("number_off_allowed") == null){
+//                                object.put("number_off_allowed", null);
+//                            }
+//                        }else{
+//                            object.put("number_off_allowed", list.get(i).get("number_off_allowed"));
+//                        }
+
                         if(list.get(i).get("competition_title") == null || list.get(i).get("competition_title").toString().trim().equals("")){
-                            object.put("competition_title", null);
+                            if(object.get("competition_title") == null){
+                                object.put("competition_title", null);
+                            }
                         }else{
                             object.put("competition_title", list.get(i).get("competition_title"));
                         }
@@ -449,13 +524,13 @@ public class AssessStudentConductDetailServiceImpl implements AssessStudentCondu
                 serviceResult.setData(list);
             }
             if(serviceResult.getData().size() == 0) {
-                serviceResult.setMessage("Lớp này chưa có học sinh nào");
+                serviceResult.setMessage("Lớp này chưa khai báo môn học cho lớp");
                 serviceResult.setStatus(HttpStatus.BAD_REQUEST);
             }else{
                 serviceResult.setMessage("success");
             }
         }catch (Exception e){
-            serviceResult.setMessage(e.getMessage());
+            serviceResult.setMessage("Lấy thông tin thất bại");
             serviceResult.setStatus(HttpStatus.BAD_REQUEST);
         }
         return serviceResult;

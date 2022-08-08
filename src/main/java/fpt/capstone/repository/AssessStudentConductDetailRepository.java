@@ -30,8 +30,8 @@ public interface AssessStudentConductDetailRepository extends JpaRepository<Asse
             "            join class_room cr on cr.code = sh.current_class_code\n" +
             "            left join gradebook gb on gb.class_code = cr.code and gb.school_year = sh.year\n" +
             "            left join gradebook_subjects_details gsd on gsd.parent_code = gb.code and gsd.student_code = s.code\n" +
-            "            join assess_student_conduct astc on astc.class_code = gb.class_code and astc.semester = gb.semester and astc.school_year = gb.school_year\n" +
-            "            join assess_student_conduct_details ascd on astc.code = ascd.parent_code and ascd.student_code = s.code\n" +
+            "            left join assess_student_conduct astc on astc.class_code = gb.class_code and astc.semester = gb.semester and astc.school_year = gb.school_year\n" +
+            "            left join assess_student_conduct_details ascd on astc.code = ascd.parent_code and ascd.student_code = s.code\n" +
             "            where s.status in (0, 1) and sh.current_class_code like :classCode and sh.year like :year and astc.semester = :semester\n" +
             "            group by student_code) as y\n" +
             "                            on x.student_code = y.student_code\n" +
@@ -43,17 +43,15 @@ public interface AssessStudentConductDetailRepository extends JpaRepository<Asse
 
                                                     @Param("classCode") String class_code);
 
-    @Query(nativeQuery = true, value = "SELECT sj.code,gsd.id, s.code as student_code, s.full_name, sj.name, asconduct.semester, t.full_name as teacher_name, ta.teacher_code, gsd.evaluate\n" +
-            "FROM assess_student_conduct as asconduct\n" +
-            "join class_room cr on asconduct.class_code = cr.code\n" +
-            "join assess_student_conduct_details ascd on ascd.parent_code = asconduct.code \n" +
-            "join students s on s.code = ascd.student_code \n" +
-            "join gradebook gb on gb.semester = asconduct.semester and gb.class_code = cr.code and gb.school_year = asconduct.school_year\n" +
-            "join gradebook_subjects_details gsd on gsd.parent_code = gb.code and gsd.student_code = s.code\n" +
+    @Query(nativeQuery = true, value = "select sj.code,gsd.id, s.code as student_code, s.full_name, sj.name, gb.semester, t.full_name as teacher_name, ta.teacher_code, gsd.evaluate \n" +
+            "from gradebook gb\n" +
+            "join gradebook_subjects_details gsd on gb.code = gsd.parent_code\n" +
+            "join students s on s.code = gsd.student_code\n" +
             "join subjects sj on sj.code = gsd.subject_code\n" +
-            "join teaching_assignment ta on ta.subject_code = sj.code and ta.class_code = cr.code \n" +
+            "join teaching_assignment ta on ta.subject_code = sj.code and ta.class_code = gb.class_code\n" +
             "join teachers t on t.code = ta.teacher_code\n" +
-            "where (:semester = 0 or asconduct.semester = :semester) and asconduct.school_year like :year  and cr.code like :class_code and s.code like :student_code and gsd.evaluate_status = 1")
+            "where (:semester = 0 or gb.semester = :semester) and gb.school_year like :year  and gb.class_code like :class_code and s.code like :student_code and gsd.evaluate_status = 1\n" +
+            "order by gb.semester asc")
     List<Map<String, Object>> getEvaluateOfTeacher(@Param("semester") Integer semester,
                                                     @Param("year") String year,
                                                     @Param("student_code") String student_code,
@@ -186,8 +184,8 @@ public interface AssessStudentConductDetailRepository extends JpaRepository<Asse
             "            join class_room cr on cr.code = sh.current_class_code\n" +
             "            left join gradebook gb on gb.class_code = cr.code and gb.school_year = sh.year\n" +
             "            left join gradebook_subjects_details gsd on gsd.parent_code = gb.code and gsd.student_code = s.code\n" +
-            "            join assess_student_conduct astc on astc.class_code = sh.current_class_code\n" +
-            "            join assess_student_conduct_details ascd on astc.code = ascd.parent_code and ascd.student_code = s.code\n" +
+            "            left join assess_student_conduct astc on astc.class_code = sh.current_class_code\n" +
+            "            left join assess_student_conduct_details ascd on astc.code = ascd.parent_code and ascd.student_code = s.code\n" +
             "            where s.status in (0, 1) and sh.current_class_code like :classCode and sh.year like :year and astc.semester = 0\n" +
             "            group by student_code) as y\n" +
             "                            on x.student_code = y.student_code\n" +
@@ -197,4 +195,11 @@ public interface AssessStudentConductDetailRepository extends JpaRepository<Asse
     List<Map<String, Object>> getConductOfClassByAllStudyYear(@Param("year") String year,
                                                               @Param("classCode") String classCode
                                                               );
+
+    @Query(nativeQuery = true, value = "select ascd.conduct, ascd.competition_title from assess_student_conduct asco\n" +
+            "join assess_student_conduct_details ascd on asco.code = ascd.parent_code\n" +
+            "where ascd.student_code like :studentCode and asco.semester = :semester and asco.school_year like :year")
+    List<Map<String, Object>> getEvaluateAndCompetitionBySemester(@Param("studentCode") String studentCode,
+                                                                  @Param("semester") Integer semester,
+                                                                  @Param("year") String year);
 }

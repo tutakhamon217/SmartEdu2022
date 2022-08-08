@@ -128,4 +128,10 @@ public interface StudentRepository extends JpaRepository<Student, Integer> {
                                                  @Param("year") String year,
                                                  @Param("studentCode") String studentCode,
                                                  @Param("classId") Integer classId);
+
+    @Query(nativeQuery = true, value = "SELECT count(*) FROM student_history sh\n" +
+            "join students s on sh.student_code = s.code\n" +
+            "where sh.current_class_code like :classCode and sh.year like :year and s.status = 0")
+    Integer getAmountOfStudentByClassCodeAndYear(@Param("classCode") String classCode,
+                                                 @Param("year") String year);
 }
