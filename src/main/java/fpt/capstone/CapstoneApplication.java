@@ -12,3 +12,4 @@ public class CapstoneApplication {
 
 }
 // gio e dua code len heroku phat nua thu lai di
+//no ghi log the nay da biet thanh cong hay loi ch e?
