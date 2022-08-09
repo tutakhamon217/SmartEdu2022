@@ -81,6 +81,7 @@ public class DepartmentController {
 
     @GetMapping(value = "/department/dropdown/parent", produces = MediaType.APPLICATION_JSON_VALUE)
     ServiceResult<List<DropDownVo>> getAllParentDepertment() {
+        System.out.println(7);
         return service.getAllParentDepartment();
     }
 
